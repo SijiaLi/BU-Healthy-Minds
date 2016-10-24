@@ -1,0 +1,99 @@
+---
+title: "Tidy data presentation"
+author: "Sijia Li"
+date: "10/24/2016"
+output: pdf_document
+---
+This dataset used in this assignment is part of project BU Healthy Minds 2016. The data can't be uploaded because of its confidentiality but here I'm only using this subset to show the process of data cleaning.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(data.table)
+```
+
+##Import the data
+```{r, warning=FALSE}
+rawdata <- read_excel("/Users/Scarlett/Desktop/BU Healthy Minds/HMS raw data 2016.xlsx", 
+                      sheet = 1, col_names = TRUE)
+```
+
+
+##Four demographics info
+The four columns we're using are: gender, citizenship, academic status, race.
+
+###1. Gender
+The gender column are coded as factors from 1-6 each representing male, female, trans male, trans female, genderqueer and others. To simply the research I just narrow down it to four factors.
+```{r}
+gender <- rawdata$gender
+gender[gender == 1] <- "male"
+gender[gender == 2] <- "female"
+gender[gender == 3 | gender == 4] <- "trans gender"
+gender[gender == 5 | gender == 6] <- "other"
+```
+
+
+###2. Citizenship
+The client only want this attribute to be divided to domestic/international so I just assign these two values.
+```{r}
+citizenship <- rawdata$citizen
+citizenship[citizenship == 1] <- "domestic"
+citizenship[citizenship == 0] <- "international"
+```
+
+
+###3. Academic status
+The academic status are divide to very specific answers in the questionaire. To simplify the research we only need it to be undergraduate/graduate so our logic here is: all students with a bachelor degree goes to "undergraduate", all master students and phd students goes to "graduate", the rest goes to "other"
+The tricky part is, some people choose "other" and specify their degree in text like "DMD". By our standard these observations are supposed to go to "graduate" but they will be accidently categorised as "other". To improve accuracy of data, I went through the text vector and mannually select them out by assigning them an indicator, as shown in the code below.
+```{r, warning=FALSE}
+educ <- rawdata[41:48]
+educ$aca_status[educ$degree_bach == 1] <- "undergraduate"
+#here my logic is, if someone choose anything from 
+#"degree_ma"  "degree_jd"  "degree_md"  "degree_phd", they goes to "graduate"
+educ$aca_status[rowSums(educ[2:5], na.rm = TRUE) >= 1] <- "graduate"
+
+#dealing with text column
+other <- educ %>% filter(degree_other == 1 & !is.na(degree_other_text))
+other_text <- unique(other$degree_other_text)
+other_text_indicator <- c(T, T, T, F, F, F, T, T, T, T, T, T, T, T, T, 
+                          T, F, F, F, T, T, T, F, T, F, F, F, T, T, F)
+grad <- other_text[other_text_indicator]
+#so here "grad" vector has all the text info that can be catogrized as graduate students. 
+#If the observation falls in this range, it goes to "gruaduate", otherwise it goes to "other"
+educ$aca_status[educ$degree_other_text %in% grad] <- "graduate"
+educ$aca_status[is.na(educ$aca_status) & educ$degree_other == 1 &
+                    !is.na(educ$degree_other_text)] <- "other"
+```
+
+
+###4. Race
+The race column is the most tricky one to clean because it has a lot of levels and the text is way more complicated and confusing. 
+First, the dataset have six levels but after counting the observations I decide to just keep four: white, black, asian, other. In addition, I'm adding one level as biracial, so in the end we'll have 5 levels in total.
+To deal with the text column the logic is the same as academic status variable, we get a list of the text using unique function and mannually assign indicators to different race factors.
+
+
+```{r, warning=FALSE}
+race <- rawdata[15:23]
+text <- unique(race$race_other_text)
+text_asian_indicator <- c(3,9,14,15,16,18,21,29,32,39,42,45,50,58,68,73,75,76,79,80)
+text_biracial_indicator <- c(24, 30,40,41,44,55,74)
+text_black_indicator <- c(6)
+text_asian <- text[text_asian_indicator]
+text_biracial <- text[text_biracial_indicator]
+text_black <- text[text_black_indicator]
+
+race$race_cleaned[race$race_white == 1] <- "white"
+race$race_cleaned[race$race_asian == 1 | race$race_other_text %in% text_asian] <- "asian"
+race$race_cleaned[race$race_black == 1 | race$race_other_text %in% text_black] <- "black"
+race$race_cleaned[rowSums(race[1:7], na.rm = TRUE) ==2 | 
+                      race$race_other_text %in% text_biracial] <- "biracial"
+#race$race_cleaned[race$race_ainaan == 1] <- "native american"
+#race$race_cleaned[race$race_mides == 1] <- "middle eastern"
+race$race_cleaned[race$race_ainaan == 1 | race$race_mides == 1] <- "other"
+race$race_cleaned[is.na(race$race_cleaned) & race$race_other == 1] <- "other"
+
+```
+
