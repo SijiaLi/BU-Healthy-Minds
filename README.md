@@ -1,6 +1,5 @@
 # BU HMS Study
 
-
 Healthy Minds Study is an annual web-based survey study examining mental health, service utilization, and related issues among BU students.
 
 This project has a special emphasis on understanding service utilization and help-seeking behaviors, including factors such as stigma, knowledge, and the role of peers and other potential gatekeepers. 
